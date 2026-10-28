@@ -1,0 +1,210 @@
+/*
+ * 86Box    A hypervisor and IBM PC system emulator that specializes in
+ *          running old operating systems and software designed for IBM
+ *          PC systems and compatibles from 1981 through fairly recent
+ *          system designs based on the PCI bus.
+ *
+ *          This file is part of the 86Box distribution.
+ *
+ *          VGPU98 2000: the display on the host's GPU. Turns the visible
+ *          frame of video memory (a GPU-side mirror of it) into 86Box's
+ *          32-bit pixels, exactly as 86Box's own renderers do: 8 bpp
+ *          through the DAC palette, 15 and 16 bpp scaled to 8 bits a
+ *          channel by (v * 255) / 31 and / 63 (alpha 0xFF, as 86Box's
+ *          tables give it), 32 bpp as stored (alpha 0), blanked as 0;
+ *          double scan shows every pixel and line twice. A pixel inside
+ *          one of the layer's rectangles (GPU-newer pixels published
+ *          straight from the host GPU's images, at their video memory
+ *          offsets) is read from the layer instead of the mirror. The
+ *          hardware cursor goes over the pixels' values before they are
+ *          turned into colours, by Windows' rule: (pixel AND mask) XOR
+ *          image. In the direct colour modes the
+ *          gamma table, when on, takes each channel of the colour last, as
+ *          a DAC does.
+ *
+ * Authors: VGPU98 Project contributors
+ *
+ *          Copyright 2026 VGPU98 Project contributors.
+ */
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer Mirror {
+    uint vram[];
+};
+layout(std430, set = 0, binding = 1) readonly buffer Palette {
+    uint pal[256]; /* 0x00RRGGBB, already through the DAC mask */
+};
+layout(std430, set = 0, binding = 2) writeonly buffer Out {
+    uint px[];
+};
+layout(std430, set = 0, binding = 3) readonly buffer Layer {
+    uint lay[];
+};
+struct Rect {
+    uint offset; /* video memory offset of the image's first pixel */
+    uint pitch;
+    uint bytes;  /* per pixel */
+    uint x0;
+    uint y0;
+    uint x1;
+    uint y1;
+    uint pad;
+};
+layout(std430, set = 0, binding = 4) readonly buffer Rects {
+    uint n;
+    uint pad0;
+    uint pad1;
+    uint pad2;
+    Rect r[32];
+} rects;
+/* The hardware cursor's pattern: 64 rows of the AND mask, 8 bytes each,
+   the left pixel in bit 7; then at 200h 64 rows of 64 pixels of the image
+   in the mode's bytes a pixel. */
+layout(std430, set = 0, binding = 5) readonly buffer Cursor {
+    uint cur[];
+};
+/* The gamma table: for each 8-bit level, R << 16 | G << 8 |
+   B, each channel's entry its own byte. */
+layout(std430, set = 0, binding = 6) readonly buffer Gamma {
+    uint gam[256];
+};
+
+layout(push_constant) uniform Frame {
+    uint start;     /* byte offset of the frame in video memory */
+    uint pitch;     /* bytes from one row to the next */
+    uint width;     /* pixels */
+    uint height;    /* rows */
+    uint bpp;       /* 8, 15, 16 or 32 */
+    uint dscan;     /* 1, or 2 for double scan */
+    uint blank;     /* 1: the screen is blanked */
+    uint mask;      /* video memory size - 1: addresses wrap */
+    uint out_pitch; /* output pixels per row */
+    int  cur_x;     /* the cursor's pattern's top-left corner, in the mode's pixels */
+    int  cur_y;
+    uint cur_on;    /* 1: the cursor is shown */
+    uint gamma_on;  /* 1: the gamma table applies (15, 16 and 32 bpp) */
+} f;
+
+uint
+vbyte(uint a)
+{
+    a &= f.mask;
+    return (vram[a >> 2] >> ((a & 3u) * 8u)) & 0xffu;
+}
+
+uint
+lbyte(uint a)
+{
+    a &= f.mask;
+    return (lay[a >> 2] >> ((a & 3u) * 8u)) & 0xffu;
+}
+
+/* Is the pixel at a (of `bytes` bytes) one the layer holds? */
+bool
+in_layer(uint a, uint bytes)
+{
+    uint i;
+
+    for (i = 0u; i < rects.n; i++) {
+        Rect     q = rects.r[i];
+        uint     rel;
+        uint     x;
+        uint     y;
+
+        if ((q.bytes != bytes) || (a < q.offset))
+            continue;
+        rel = a - q.offset;
+        y   = rel / q.pitch;
+        x   = rel - y * q.pitch;
+        if (((x % bytes) == 0u) && (y >= q.y0) && (y < q.y1) && ((x / bytes) >= q.x0) && ((x / bytes) < q.x1))
+            return true;
+    }
+    return false;
+}
+
+uint
+bytes2(uint a, bool l)
+{
+    return l ? (lbyte(a) | (lbyte(a + 1u) << 8)) : (vbyte(a) | (vbyte(a + 1u) << 8));
+}
+
+uint
+bytes3(uint a, bool l)
+{
+    return l ? (lbyte(a) | (lbyte(a + 1u) << 8) | (lbyte(a + 2u) << 16)) :
+               (vbyte(a) | (vbyte(a + 1u) << 8) | (vbyte(a + 2u) << 16));
+}
+
+uint
+cbyte(uint a)
+{
+    return (cur[a >> 2] >> ((a & 3u) * 8u)) & 0xffu;
+}
+
+/* The cursor over the value v of the pixel at p (`bytes` a pixel). */
+uint
+cursor(uvec2 p, uint v, uint bytes)
+{
+    int  cx = int(p.x) - f.cur_x;
+    int  cy = int(p.y) - f.cur_y;
+    uint i;
+    uint x;
+
+    if ((f.cur_on == 0u) || (cx < 0) || (cy < 0) || (cx >= 64) || (cy >= 64))
+        return v;
+    i = 0x200u + (uint(cy) * 64u + uint(cx)) * bytes;
+    x = cbyte(i);
+    if (bytes >= 2u)
+        x |= cbyte(i + 1u) << 8;
+    if (bytes == 4u)
+        x |= cbyte(i + 2u) << 16;
+    return (((cbyte(uint(cy) * 8u + (uint(cx) >> 3)) >> (7u - (uint(cx) & 7u))) & 1u) != 0u) ? (v ^ x) : x;
+}
+
+uint
+pixel(uvec2 p)
+{
+    uint a = f.start + p.y * f.pitch;
+    uint v;
+
+    if (f.blank != 0u)
+        return 0u;
+    if (f.bpp == 8u)
+        return pal[cursor(p, vbyte(a + p.x), 1u)];
+    if ((f.bpp == 15u) || (f.bpp == 16u)) {
+        a += 2u * p.x;
+        v = cursor(p, bytes2(a, (rects.n != 0u) && in_layer(a & f.mask, 2u)), 2u);
+        if (f.bpp == 15u)
+            return ((v & 31u) * 255u / 31u) | ((((v >> 5) & 31u) * 255u / 31u) << 8) | ((((v >> 10) & 31u) * 255u / 31u) << 16) |
+                   0xff000000u;
+        return ((v & 31u) * 255u / 31u) | ((((v >> 5) & 63u) * 255u / 63u) << 8) | (((v >> 11) * 255u / 31u) << 16) | 0xff000000u;
+    }
+    a += 4u * p.x;
+    return cursor(p, bytes3(a, (rects.n != 0u) && in_layer(a & f.mask, 4u)), 4u);
+}
+
+void
+main()
+{
+    uvec2 p = gl_GlobalInvocationID.xy;
+    uint  c;
+    uint  o;
+
+    if ((p.x >= f.width) || (p.y >= f.height))
+        return;
+    c = pixel(p);
+    /* The DAC's gamma: each channel's 8 bits through its table (a blanked
+       screen stays black: blanking is after the DAC). */
+    if ((f.gamma_on != 0u) && (f.blank == 0u))
+        c = (c & 0xff000000u) | (gam[(c >> 16) & 0xffu] & 0xff0000u) | (gam[(c >> 8) & 0xffu] & 0xff00u) |
+            (gam[c & 0xffu] & 0xffu);
+    o = p.y * f.dscan * f.out_pitch + p.x * f.dscan;
+    px[o] = c;
+    if (f.dscan == 2u) {
+        px[o + 1u]               = c;
+        px[o + f.out_pitch]      = c;
+        px[o + f.out_pitch + 1u] = c;
+    }
+}

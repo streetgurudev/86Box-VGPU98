@@ -248,6 +248,11 @@ typedef struct svga_t {
     /*If set then another device is driving the monitor output and the SVGA
       card should not attempt to display anything */
     int   override;
+    /* The card composes the frame elsewhere (VGPU98's display on the host
+       GPU) and puts it into the frame buffer at vertical blank: the core
+       renders no lines; its borders, blit and timing go on. Kept apart from
+       override, which pass-through cards (the Voodoo's) set. */
+    int   host_display;
     void *priv;
 
     int vga_enabled;

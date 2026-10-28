@@ -832,6 +832,7 @@ video_monitor_init(int index)
     atomic_init(&monitors[index].mon_screenshots_clipboard, 0);
     atomic_init(&monitors[index].mon_screenshots_raw, 0);
     atomic_init(&monitors[index].mon_screenshots_raw_clipboard, 0);
+    atomic_init(&monitors[index].mon_screenshot_requests, 0);
     if (index >= 1)
         ui_init_monitor(index);
     monitors[index].mon_blit_data_ptr->blit_thread = thread_create(blit_thread, monitors[index].mon_blit_data_ptr);

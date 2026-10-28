@@ -1408,13 +1408,13 @@ svga_do_render(svga_t *svga)
         return;
     }
 
-    if (!svga->override) {
+    if (!svga->override && !svga->host_display) {
         svga->render_line_offset = svga->start_retrace_latch - svga->crtc[0x4];
         svga->render(svga);
     }
 
     if (svga->overlay_on) {
-        if (!svga->override && svga->overlay_draw)
+        if (!svga->override && !svga->host_display && svga->overlay_draw)
             svga->overlay_draw(svga, svga->displine + svga->y_add);
         svga->overlay_on--;
         if (svga->overlay_on && svga->interlace)
@@ -1422,7 +1422,7 @@ svga_do_render(svga_t *svga)
     }
 
     if (svga->dac_hwcursor_on) {
-        if (!svga->override && svga->dac_hwcursor_draw)
+        if (!svga->override && !svga->host_display && svga->dac_hwcursor_draw)
             svga->dac_hwcursor_draw(svga, (svga->displine + svga->y_add + ((svga->dac_hwcursor_latch.y >= 0) ? 0 : svga->dac_hwcursor_latch.y)) & 2047);
         svga->dac_hwcursor_on--;
         if (svga->dac_hwcursor_on && svga->interlace)
@@ -1430,7 +1430,7 @@ svga_do_render(svga_t *svga)
     }
 
     if (svga->hwcursor_on) {
-        if (!svga->override && svga->hwcursor_draw)
+        if (!svga->override && !svga->host_display && svga->hwcursor_draw)
             svga->hwcursor_draw(svga, (svga->displine + svga->y_add + ((svga->hwcursor_latch.y >= 0) ? 0 : svga->hwcursor_latch.y)) & 2047);
 
         svga->hwcursor_on--;

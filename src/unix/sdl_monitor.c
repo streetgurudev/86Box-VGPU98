@@ -206,6 +206,7 @@ monitor_execute_line(char *line)
         } else if (strncasecmp(xargv[0], "screenshot", 10) == 0) {
             startblit();
             ++monitors[0].mon_screenshots_raw;
+            ++monitors[0].mon_screenshot_requests;
             endblit();
             device_force_redraw();
         } else if (strncasecmp(xargv[0], "pause", 5) == 0) {

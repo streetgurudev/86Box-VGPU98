@@ -65,6 +65,10 @@
     }
 
 #define VISO_SECTOR_SIZE COOKED_SECTOR_SIZE
+/* Blank space after the last file, as CD mastering tools leave (mkisofs pads
+   150 sectors): operating systems read ahead past the end of the data, and a
+   file in a disc's last sectors may otherwise be misread. */
+#define VISO_PAD_BYTES (150 * VISO_SECTOR_SIZE)
 #define VISO_OPEN_FILES  32
 
 enum {
@@ -129,6 +133,13 @@ typedef struct {
     viso_entry_t **entry_map;
     viso_entry_t  *file_fifo[VISO_OPEN_FILES];
 } viso_t;
+
+/* The padding after the last file, in the disc's sectors. */
+static size_t
+viso_pad_sectors(const viso_t *viso)
+{
+    return (VISO_PAD_BYTES + viso->sector_size - 1) / viso->sector_size;
+}
 
 static const char rr_eid[]   = "RRIP_1991A"; /* identifiers used in ER field for Rock Ridge */
 static const char rr_edesc[] = "THE ROCK RIDGE INTERCHANGE PROTOCOL PROVIDES SUPPORT FOR POSIX FILE SYSTEM SEMANTICS.";
@@ -1483,7 +1494,9 @@ next_entry:
         }
     }
 
-    /* Allocate entry map for sector->file lookups. */
+    /* Allocate entry map for sector->file lookups, the padding included
+       (its entries stay empty and read as zeros). */
+    viso->entry_map_size += viso_pad_sectors(viso);
     size_t orig_sector_size = viso->sector_size;
     while (1) {
         image_viso_log(viso->tf.log, "Allocating entry map for %zu %zu-byte sectors\n",
@@ -1514,6 +1527,7 @@ next_entry:
                 }
                 entry = entry->next;
             }
+            viso->entry_map_size += viso_pad_sectors(viso);
             if (viso->entry_map_size == orig_entry_map_size) /* give up if there was no change in map size */
                 goto end;
 
@@ -1585,6 +1599,9 @@ next_entry:
         prev_entry = entry;
         entry      = entry->next;
     }
+
+    /* The padding after the last file. */
+    viso->all_sectors += viso_pad_sectors(viso);
 
     /* Write final volume size to all volume descriptors. */
     p = data;

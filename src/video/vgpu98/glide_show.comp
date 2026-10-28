@@ -1,0 +1,80 @@
+/*
+ * 86Box    A hypervisor and IBM PC system emulator that specializes in
+ *          running old operating systems and software designed for IBM
+ *          PC systems and compatibles from 1981 through fairly recent
+ *          system designs based on the PCI bus.
+ *
+ *          This file is part of the 86Box distribution.
+ *
+ *          VGPU98 2000: the screen while a Glide session shows.
+ *          Turns the session's
+ *          front buffer, 16-bit RGB565 pixels copied to the display at
+ *          its last swap, into 86Box's 32-bit pixels: each channel
+ *          widened to 8 bits by repeating its high bits, as a Voodoo's
+ *          video output does, then through Glide's gamma table. A frame
+ *          of another size than the screen is scaled to it, a pixel's
+ *          nearest.
+ *
+ * Authors: VGPU98 Project contributors
+ *
+ *          Copyright 2026 VGPU98 Project contributors.
+ */
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer Frame {
+    uint fb[]; /* two pixels a word, the first in the low half */
+};
+layout(std430, set = 0, binding = 1) readonly buffer Gamma {
+    uint lut[256]; /* for an 8-bit value: red in bits 7:0, green 15:8, blue 23:16 */
+};
+layout(std430, set = 0, binding = 2) writeonly buffer Out {
+    uint px[];
+};
+
+layout(push_constant) uniform Show {
+    uint width;     /* the frame's pixels */
+    uint height;    /* its rows */
+    uint pitch;     /* its pixels from one row to the next */
+    uint out_w;     /* the screen's pixels */
+    uint out_h;     /* its rows */
+    uint out_pitch; /* output pixels per row */
+    uint blank;     /* 1: the screen is blanked */
+} s;
+
+void
+main()
+{
+    uvec2 p = gl_GlobalInvocationID.xy;
+    uint  x;
+    uint  y;
+    uint  i;
+    uint  v;
+    uint  r;
+    uint  g;
+    uint  b;
+
+    if ((p.x >= s.out_w) || (p.y >= s.out_h))
+        return;
+    if (s.blank != 0u) {
+        px[p.y * s.out_pitch + p.x] = 0u;
+        return;
+    }
+    x = (s.out_w == s.width) ? p.x : (p.x * s.width) / s.out_w;
+    y = (s.out_h == s.height) ? p.y : (p.y * s.height) / s.out_h;
+    i = y * s.pitch + x;
+    v = (fb[i >> 1] >> ((i & 1u) * 16u)) & 0xffffu;
+    r = v >> 11;
+    g = (v >> 5) & 63u;
+    b = v & 31u;
+    r = (r << 3) | (r >> 2);
+    g = (g << 2) | (g >> 4);
+    b = (b << 3) | (b >> 2);
+    r = lut[r] & 0xffu;
+    g = (lut[g] >> 8) & 0xffu;
+    b = (lut[b] >> 16) & 0xffu;
+    /* 86Box's pixel: blue in the low byte, alpha 0xFF as its 16-bit tables
+       give it. */
+    px[p.y * s.out_pitch + p.x] = b | (g << 8) | (r << 16) | 0xff000000u;
+}

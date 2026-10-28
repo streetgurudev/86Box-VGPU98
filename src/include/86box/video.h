@@ -162,6 +162,7 @@ typedef struct monitor_t {
     atomic_int               mon_screenshots_clipboard;
     atomic_int               mon_screenshots_raw;
     atomic_int               mon_screenshots_raw_clipboard;
+    atomic_int               mon_screenshot_requests; /* screenshots of any kind asked for, ever: a device can tell a new one */
     uint32_t                *mon_pal_lookup;
     int                     *mon_cga_palette;
     int                      mon_pal_lookup_static;  /* Whether it should not be freed by the API. */
@@ -607,6 +608,9 @@ extern const device_t s3_trio3d2x_agp_device;
 
 /* Sigma Color 400 */
 extern const device_t sigma_device;
+
+/* VGPU98 */
+extern const device_t vgpu98_pci_device;
 
 /* Trident TGUI 94x0 */
 extern const device_t tgui9400cxi_device;

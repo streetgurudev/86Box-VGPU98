@@ -158,11 +158,51 @@ add_library(vid OBJECT
 
     # Generic
     vid_bochs_vbe.c
+    vid_vgpu98.c
+    vid_vgpu98_gpu.c
+    vid_vgpu98_r3d.c
+    vid_vgpu98_vtx.c
+    vid_vgpu98_disp.c
+    vid_vgpu98_glide.c
+    vid_vgpu98_ogl.c
+    vid_vgpu98_dd.c
     vid_hd44780.c
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
     target_include_directories(vid PRIVATE /usr/local/include)
+endif()
+
+# VGPU98 2000: its GPU draws 3D through the host's Vulkan driver, loaded at run
+# time. The shaders are compiled to SPIR-V at build time; without glslang or
+# the Vulkan headers the card is built without 3D.
+find_program(GLSLANG_VALIDATOR glslangValidator)
+find_path(VGPU98_VULKAN_INCLUDE vulkan/vulkan.h)
+if(GLSLANG_VALIDATOR AND VGPU98_VULKAN_INCLUDE)
+    set(VGPU98_SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/vgpu98)
+    file(MAKE_DIRECTORY ${VGPU98_SHADER_DIR})
+    set(VGPU98_SHADERS)
+    foreach(shader IN ITEMS "vgpu98.vert|vgpu98_vert|" "vgpu98.frag|vgpu98_frag|" "vgpu98.frag|vgpu98_frag_depth|-DCOMPUTED_DEPTH" "display.comp|vgpu98_display|"
+                            "glide_show.comp|vgpu98_glide_show|" "glide.vert|vgpu98_glide_vert|" "glide.frag|vgpu98_glide_frag|"
+                            "ogl.vert|vgpu98_ogl_vert|" "ogl.frag|vgpu98_ogl_frag|" "ogl.frag|vgpu98_ogl_frag_depth|-DCOMPUTED_DEPTH")
+        string(REPLACE "|" ";" parts "${shader}")
+        list(GET parts 0 src)
+        list(GET parts 1 name)
+        list(GET parts 2 defines)
+        add_custom_command(
+            OUTPUT ${VGPU98_SHADER_DIR}/${name}.h
+            COMMAND ${GLSLANG_VALIDATOR} -V --target-env vulkan1.1 ${defines} --vn ${name}
+                    -o ${VGPU98_SHADER_DIR}/${name}.h ${CMAKE_CURRENT_SOURCE_DIR}/vgpu98/${src}
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/vgpu98/${src}
+            COMMENT "Compiling the VGPU98 shader ${name}"
+            VERBATIM)
+        list(APPEND VGPU98_SHADERS ${VGPU98_SHADER_DIR}/${name}.h)
+    endforeach()
+    target_sources(vid PRIVATE vid_vgpu98_vk.c ${VGPU98_SHADERS})
+    target_include_directories(vid PRIVATE ${VGPU98_SHADER_DIR} ${VGPU98_VULKAN_INCLUDE})
+else()
+    target_compile_definitions(vid PRIVATE VGPU98_NO_VULKAN)
+    message(STATUS "VGPU98: glslangValidator or the Vulkan headers not found; the GPU is built without 3D")
 endif()
 
 if(G100)

@@ -2452,6 +2452,8 @@ MainWindow::on_actionTake_screenshot_triggered()
     startblit();
     for (auto &monitor : monitors)
         ++monitor.mon_screenshots;
+    for (auto &monitor : monitors)
+        ++monitor.mon_screenshot_requests;
     endblit();
     device_force_redraw();
 }
@@ -2462,6 +2464,8 @@ MainWindow::on_actionTake_raw_screenshot_triggered()
     startblit();
     for (auto &monitor : monitors)
         ++monitor.mon_screenshots_raw;
+    for (auto &monitor : monitors)
+        ++monitor.mon_screenshot_requests;
     endblit();
     device_force_redraw();
 }
@@ -2472,6 +2476,8 @@ MainWindow::on_actionCopy_screenshot_triggered()
     startblit();
     for (auto &monitor : monitors)
         ++monitor.mon_screenshots_clipboard;
+    for (auto &monitor : monitors)
+        ++monitor.mon_screenshot_requests;
     endblit();
     device_force_redraw();
 }
@@ -2482,6 +2488,8 @@ MainWindow::on_actionCopy_raw_screenshot_triggered()
     startblit();
     for (auto &monitor : monitors)
         ++monitor.mon_screenshots_raw_clipboard;
+    for (auto &monitor : monitors)
+        ++monitor.mon_screenshot_requests;
     endblit();
     device_force_redraw();
 }

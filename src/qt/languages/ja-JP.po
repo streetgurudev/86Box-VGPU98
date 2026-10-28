@@ -3531,3 +3531,90 @@ msgstr "CGA ライトペン"
 
 msgid "Luminance threshold (%)"
 msgstr "輝度しきい値 (%)"
+
+msgid "Diagnostics (86Box's log, not inside the VM)"
+msgstr ""
+
+msgid "128 MB"
+msgstr ""
+
+msgid "Minimal"
+msgstr ""
+
+msgid "DirectX"
+msgstr ""
+
+msgid "DirectX + capture"
+msgstr ""
+
+msgid "DirectX: texture audit"
+msgstr ""
+
+msgid "DirectX 7: vertex audit"
+msgstr ""
+
+msgid "DirectX 8: stream + texture audit (slow)"
+msgstr ""
+
+msgid "Glide"
+msgstr ""
+
+msgid "OpenGL"
+msgstr ""
+
+msgid "Developer: every packet (slow)"
+msgstr ""
+
+msgid "16-bit depth precision"
+msgstr ""
+
+msgid "As the guest's"
+msgstr ""
+
+msgid "Full"
+msgstr ""
+
+msgid "DirectX 8 interface"
+msgstr ""
+
+msgid "DirectX 8 shaders"
+msgstr ""
+
+msgid "Capture"
+msgstr ""
+
+msgid "Capture, with GPU programs"
+msgstr ""
+
+msgid "Locks through main memory"
+msgstr ""
+
+msgid "OpenGL GL_CLAMP"
+msgstr ""
+
+msgid "As period drivers (clamp to edge)"
+msgstr ""
+
+msgid "Exact (OpenGL 1.1)"
+msgstr ""
+
+msgid "Cursor"
+msgstr ""
+
+msgid "Hardware"
+msgstr ""
+
+msgid "Software (the DIB engine's)"
+msgstr ""
+
+msgid "Gamma"
+msgstr ""
+
+msgid "V-sync overrides"
+msgstr ""
+
+msgid "Pipeline cache (shared by every machine)"
+msgstr ""
+
+msgid "Start empty"
+msgstr ""
