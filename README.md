@@ -1,7 +1,7 @@
 > **This is an unofficial build of 86Box with the VGPU98 2000 virtual graphics card added.** It is not made or supported by the 86Box project. The card's BIOS, Windows 98 drivers, documentation and release downloads are in [VGPU98-2000](https://github.com/streetgurudev/VGPU98-2000); please report problems there, not to 86Box. What this branch changes in 86Box is listed in [VGPU98-CHANGES.md](VGPU98-CHANGES.md). The rest of this README is 86Box's own.
 
 (We need help in developing this emulator! See https://github.com/86Box/86Box/issues/7386 for details. Any and all help is appreciated.)
-
+***There is a bug where if left idle, tue vm goes to a black screen, with a blinking cursor, and I can't get it to recover from it.
 86Box
 =====
 
